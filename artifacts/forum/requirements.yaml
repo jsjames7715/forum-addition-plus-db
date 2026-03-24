@@ -1,0 +1,18 @@
+packages:
+  "framer-motion": "For smooth layout animations, page transitions, and micro-interactions"
+  "date-fns": "For formatting timestamps on posts and threads"
+  "@hookform/resolvers": "For Zod form validation with react-hook-form"
+  "react-hook-form": "For robust form state management"
+
+images:
+  - path: "artifacts/forum/public/images/bg-glow.png"
+    description: "A dark, highly minimal abstract background with a very subtle, faint emerald green and cyan mesh gradient glow. Mostly pitch black (#050505) with deep shadows and subtle noise texture."
+    aspect_ratio: "16:9"
+  - path: "artifacts/forum/public/images/avatar-placeholder.png"
+    description: "A minimal, privacy-focused geometric avatar placeholder. Dark gray background with a fine, abstract neon green wireframe pattern."
+    aspect_ratio: "1:1"
+
+notes:
+  - API base path is /api
+  - Auth uses session cookies, check auth state via GET /api/auth/me
+  - Viewing categories, threads, and posts is public, but creating them requires authentication
