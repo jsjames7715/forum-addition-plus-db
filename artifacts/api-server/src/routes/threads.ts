@@ -45,6 +45,8 @@ router.get("/categories/:categoryId/threads", async (req, res): Promise<void> =>
       categoryId: threadsTable.categoryId,
       authorId: threadsTable.authorId,
       authorUsername: usersTable.username,
+      authorDisplayName: usersTable.displayName,
+      authorAvatarUrl: usersTable.avatarUrl,
       lastPostAt: threadsTable.lastPostAt,
       createdAt: threadsTable.createdAt,
     })
@@ -66,7 +68,12 @@ router.get("/categories/:categoryId/threads", async (req, res): Promise<void> =>
         .select({ postCount: count() })
         .from(postsTable)
         .where(eq(postsTable.threadId, t.id));
-      return { ...t, postCount: Number(postCount) };
+      return {
+        ...t,
+        authorDisplayName: t.authorDisplayName ?? null,
+        authorAvatarUrl: t.authorAvatarUrl ?? null,
+        postCount: Number(postCount),
+      };
     })
   );
 
@@ -110,6 +117,8 @@ router.post("/categories/:categoryId/threads", requireAuth, async (req, res): Pr
       categoryId: thread.categoryId,
       authorId: thread.authorId,
       authorUsername: user.username,
+      authorDisplayName: user.displayName ?? null,
+      authorAvatarUrl: user.avatarUrl ?? null,
       postCount: 1,
       createdAt: thread.createdAt,
       lastPostAt: thread.lastPostAt,
@@ -133,6 +142,8 @@ router.get("/threads/:threadId", async (req, res): Promise<void> => {
       categoryId: threadsTable.categoryId,
       authorId: threadsTable.authorId,
       authorUsername: usersTable.username,
+      authorDisplayName: usersTable.displayName,
+      authorAvatarUrl: usersTable.avatarUrl,
       lastPostAt: threadsTable.lastPostAt,
       createdAt: threadsTable.createdAt,
     })
@@ -150,7 +161,14 @@ router.get("/threads/:threadId", async (req, res): Promise<void> => {
     .from(postsTable)
     .where(eq(postsTable.threadId, threadId));
 
-  res.json(GetThreadResponse.parse({ ...row, postCount: Number(postCount) }));
+  res.json(
+    GetThreadResponse.parse({
+      ...row,
+      authorDisplayName: row.authorDisplayName ?? null,
+      authorAvatarUrl: row.authorAvatarUrl ?? null,
+      postCount: Number(postCount),
+    })
+  );
 });
 
 export default router;

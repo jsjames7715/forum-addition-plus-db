@@ -7,6 +7,16 @@ import { createSession, destroySession, getCurrentUser, requireAuth } from "../l
 
 const router: IRouter = Router();
 
+function formatAuthUser(user: typeof usersTable.$inferSelect) {
+  return {
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName ?? null,
+    avatarUrl: user.avatarUrl ?? null,
+    createdAt: user.createdAt,
+  };
+}
+
 router.post("/auth/register", async (req, res): Promise<void> => {
   const parsed = RegisterBody.safeParse(req.body);
   if (!parsed.success) {
@@ -26,7 +36,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   const [user] = await db.insert(usersTable).values({ username, passwordHash }).returning();
 
   await createSession(res, user.id);
-  res.status(201).json({ id: user.id, username: user.username, createdAt: user.createdAt });
+  res.status(201).json(formatAuthUser(user));
 });
 
 router.post("/auth/login", async (req, res): Promise<void> => {
@@ -51,7 +61,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   }
 
   await createSession(res, user.id);
-  res.json({ id: user.id, username: user.username, createdAt: user.createdAt });
+  res.json(formatAuthUser(user));
 });
 
 router.post("/auth/logout", async (req, res): Promise<void> => {
@@ -65,7 +75,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
-  res.json({ id: user.id, username: user.username, createdAt: user.createdAt });
+  res.json(formatAuthUser(user));
 });
 
 export default router;

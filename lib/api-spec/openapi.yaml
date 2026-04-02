@@ -17,6 +17,8 @@ tags:
     description: Forum thread operations
   - name: posts
     description: Forum post operations
+  - name: users
+    description: User profile operations
 paths:
   /healthz:
     get:
@@ -295,6 +297,93 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /users/{username}:
+    get:
+      operationId: getUserProfile
+      tags: [users]
+      summary: Get a user's public profile
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/me/profile:
+    patch:
+      operationId: updateMyProfile
+      tags: [users]
+      summary: Update the current user's profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileBody"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/me/avatar:
+    post:
+      operationId: uploadAvatar
+      tags: [users]
+      summary: Upload avatar image as base64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadAvatarBody"
+      responses:
+        "200":
+          description: Avatar uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvatarResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -345,6 +434,12 @@ components:
           type: integer
         username:
           type: string
+        displayName:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -396,6 +491,12 @@ components:
           type: integer
         authorUsername:
           type: string
+        authorDisplayName:
+          type: string
+          nullable: true
+        authorAvatarUrl:
+          type: string
+          nullable: true
         postCount:
           type: integer
         createdAt:
@@ -458,8 +559,23 @@ components:
           type: integer
         authorUsername:
           type: string
+        authorDisplayName:
+          type: string
+          nullable: true
+        authorAvatarUrl:
+          type: string
+          nullable: true
         content:
           type: string
+        parentPostId:
+          type: integer
+          nullable: true
+        parentPostAuthorUsername:
+          type: string
+          nullable: true
+        parentPostContent:
+          type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -496,5 +612,67 @@ components:
         content:
           type: string
           minLength: 1
+        parentPostId:
+          type: integer
+          nullable: true
       required:
         - content
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        postCount:
+          type: integer
+        threadCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - username
+        - postCount
+        - threadCount
+        - createdAt
+
+    UpdateProfileBody:
+      type: object
+      properties:
+        displayName:
+          type: string
+          maxLength: 50
+          nullable: true
+        bio:
+          type: string
+          maxLength: 500
+          nullable: true
+
+    UploadAvatarBody:
+      type: object
+      properties:
+        imageData:
+          type: string
+          description: Base64-encoded image data URI (e.g. data:image/png;base64,...)
+      required:
+        - imageData
+
+    AvatarResponse:
+      type: object
+      properties:
+        avatarUrl:
+          type: string
+      required:
+        - avatarUrl

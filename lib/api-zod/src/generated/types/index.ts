@@ -7,6 +7,7 @@
  */
 
 export * from "./authUser";
+export * from "./avatarResponse";
 export * from "./category";
 export * from "./createPostBody";
 export * from "./createThreadBody";
@@ -21,3 +22,6 @@ export * from "./loginBody";
 export * from "./post";
 export * from "./registerBody";
 export * from "./thread";
+export * from "./updateProfileBody";
+export * from "./uploadAvatarBody";
+export * from "./userProfile";

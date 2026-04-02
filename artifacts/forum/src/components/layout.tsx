@@ -5,6 +5,13 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function Layout({ children }: { children: ReactNode }) {
   const { user, isLoading, logout, isLoggingOut } = useAuth();
@@ -36,20 +43,37 @@ export function Layout({ children }: { children: ReactNode }) {
               <Skeleton className="w-24 h-9 bg-white/5" />
             ) : user ? (
               <div className="flex items-center gap-4">
-                <div className="hidden sm:flex items-center gap-2 text-sm font-mono text-muted-foreground border border-white/10 px-3 py-1.5 rounded-md bg-black/40">
-                  <Terminal className="w-4 h-4 text-primary" />
-                  <span>{user.username}</span>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="font-mono gap-2 border-white/10 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors"
-                  onClick={() => logout()}
-                  disabled={isLoggingOut}
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span className="hidden sm:inline">Disconnect</span>
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="flex items-center gap-2 text-sm font-mono text-muted-foreground border border-white/10 px-3 py-1.5 rounded-md bg-black/40 hover:bg-white/5 transition-colors">
+                      {user.avatarUrl ? (
+                        <div className="w-5 h-5 rounded-full overflow-hidden border border-primary/30 shrink-0">
+                          <img src={user.avatarUrl} alt={user.username} className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <Terminal className="w-4 h-4 text-primary shrink-0" />
+                      )}
+                      <span className="hidden sm:inline">{user.username}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48 bg-card border-white/10 font-mono text-sm text-foreground">
+                    <DropdownMenuItem asChild className="cursor-pointer focus:bg-primary/20 focus:text-primary">
+                      <Link href={`/profile/${user.username}`}>View Profile</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild className="cursor-pointer focus:bg-primary/20 focus:text-primary">
+                      <Link href="/account">Account Settings</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="bg-white/10" />
+                    <DropdownMenuItem 
+                      className="cursor-pointer text-destructive focus:bg-destructive/20 focus:text-destructive"
+                      onClick={() => logout()}
+                      disabled={isLoggingOut}
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Disconnect
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             ) : (
               <div className="flex items-center gap-2">

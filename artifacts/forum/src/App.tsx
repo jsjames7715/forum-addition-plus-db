@@ -9,6 +9,8 @@ import Category from "@/pages/category";
 import Thread from "@/pages/thread";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
+import Profile from "@/pages/profile";
+import Account from "@/pages/account";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -28,6 +30,8 @@ function Router() {
       <Route path="/threads/:id" component={Thread} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/profile/:username" component={Profile} />
+      <Route path="/account" component={Account} />
       <Route component={NotFound} />
     </Switch>
   );

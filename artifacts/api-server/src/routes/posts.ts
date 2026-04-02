@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, postsTable, threadsTable, usersTable } from "@workspace/db";
-import { eq, count, asc } from "drizzle-orm";
+import { eq, count, asc, isNull } from "drizzle-orm";
 import {
   ListPostsParams,
   ListPostsQueryParams,
@@ -36,13 +36,18 @@ router.get("/threads/:threadId/posts", async (req, res): Promise<void> => {
 
   const offset = (page - 1) * limit;
 
+  const authorAlias = usersTable;
+
   const posts = await db
     .select({
       id: postsTable.id,
       threadId: postsTable.threadId,
       authorId: postsTable.authorId,
       authorUsername: usersTable.username,
+      authorDisplayName: usersTable.displayName,
+      authorAvatarUrl: usersTable.avatarUrl,
       content: postsTable.content,
+      parentPostId: postsTable.parentPostId,
       createdAt: postsTable.createdAt,
     })
     .from(postsTable)
@@ -52,12 +57,40 @@ router.get("/threads/:threadId/posts", async (req, res): Promise<void> => {
     .limit(limit)
     .offset(offset);
 
+  // Enrich posts with parent post data
+  const enrichedPosts = await Promise.all(
+    posts.map(async (post) => {
+      if (!post.parentPostId) {
+        return {
+          ...post,
+          parentPostAuthorUsername: null,
+          parentPostContent: null,
+        };
+      }
+
+      const [parent] = await db
+        .select({
+          content: postsTable.content,
+          authorUsername: usersTable.username,
+        })
+        .from(postsTable)
+        .innerJoin(usersTable, eq(postsTable.authorId, usersTable.id))
+        .where(eq(postsTable.id, post.parentPostId));
+
+      return {
+        ...post,
+        parentPostAuthorUsername: parent?.authorUsername ?? null,
+        parentPostContent: parent?.content ?? null,
+      };
+    })
+  );
+
   const [{ total }] = await db
     .select({ total: count() })
     .from(postsTable)
     .where(eq(postsTable.threadId, threadId));
 
-  res.json(ListPostsResponse.parse({ posts, total: Number(total), page, limit }));
+  res.json(ListPostsResponse.parse({ posts: enrichedPosts, total: Number(total), page, limit }));
 });
 
 router.post("/threads/:threadId/posts", requireAuth, async (req, res): Promise<void> => {
@@ -74,7 +107,7 @@ router.post("/threads/:threadId/posts", requireAuth, async (req, res): Promise<v
   }
 
   const { threadId } = params.data;
-  const { content } = body.data;
+  const { content, parentPostId } = body.data;
   const user = (req as any).user;
 
   const [thread] = await db.select().from(threadsTable).where(eq(threadsTable.id, threadId));
@@ -83,9 +116,21 @@ router.post("/threads/:threadId/posts", requireAuth, async (req, res): Promise<v
     return;
   }
 
+  // Validate parentPostId belongs to this thread
+  if (parentPostId) {
+    const [parentPost] = await db
+      .select()
+      .from(postsTable)
+      .where(eq(postsTable.id, parentPostId));
+    if (!parentPost || parentPost.threadId !== threadId) {
+      res.status(400).json({ error: "Invalid parent post" });
+      return;
+    }
+  }
+
   const [post] = await db
     .insert(postsTable)
-    .values({ threadId, authorId: user.id, content })
+    .values({ threadId, authorId: user.id, content, parentPostId: parentPostId ?? null })
     .returning();
 
   await db
@@ -98,7 +143,12 @@ router.post("/threads/:threadId/posts", requireAuth, async (req, res): Promise<v
     threadId: post.threadId,
     authorId: post.authorId,
     authorUsername: user.username,
+    authorDisplayName: user.displayName ?? null,
+    authorAvatarUrl: user.avatarUrl ?? null,
     content: post.content,
+    parentPostId: post.parentPostId ?? null,
+    parentPostAuthorUsername: null,
+    parentPostContent: null,
     createdAt: post.createdAt,
   });
 });

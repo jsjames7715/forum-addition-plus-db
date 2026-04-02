@@ -6,8 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CreatePostBody {
-  /** @minLength 1 */
-  content: string;
-  parentPostId?: number | null;
+export interface AvatarResponse {
+  avatarUrl: string;
 }

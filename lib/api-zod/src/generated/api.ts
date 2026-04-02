@@ -41,6 +41,8 @@ export const LoginBody = zod.object({
 export const LoginResponse = zod.object({
   id: zod.number(),
   username: zod.string(),
+  displayName: zod.string().nullish(),
+  avatarUrl: zod.string().nullish(),
   createdAt: zod.date(),
 });
 
@@ -50,6 +52,8 @@ export const LoginResponse = zod.object({
 export const GetMeResponse = zod.object({
   id: zod.number(),
   username: zod.string(),
+  displayName: zod.string().nullish(),
+  avatarUrl: zod.string().nullish(),
   createdAt: zod.date(),
 });
 
@@ -91,6 +95,8 @@ export const ListThreadsResponse = zod.object({
       categoryId: zod.number(),
       authorId: zod.number(),
       authorUsername: zod.string(),
+      authorDisplayName: zod.string().nullish(),
+      authorAvatarUrl: zod.string().nullish(),
       postCount: zod.number(),
       createdAt: zod.date(),
       lastPostAt: zod.date(),
@@ -132,6 +138,8 @@ export const GetThreadResponse = zod.object({
   categoryId: zod.number(),
   authorId: zod.number(),
   authorUsername: zod.string(),
+  authorDisplayName: zod.string().nullish(),
+  authorAvatarUrl: zod.string().nullish(),
   postCount: zod.number(),
   createdAt: zod.date(),
   lastPostAt: zod.date(),
@@ -159,7 +167,12 @@ export const ListPostsResponse = zod.object({
       threadId: zod.number(),
       authorId: zod.number(),
       authorUsername: zod.string(),
+      authorDisplayName: zod.string().nullish(),
+      authorAvatarUrl: zod.string().nullish(),
       content: zod.string(),
+      parentPostId: zod.number().nullish(),
+      parentPostAuthorUsername: zod.string().nullish(),
+      parentPostContent: zod.string().nullish(),
       createdAt: zod.date(),
     }),
   ),
@@ -177,4 +190,61 @@ export const CreatePostParams = zod.object({
 
 export const CreatePostBody = zod.object({
   content: zod.string().min(1),
+  parentPostId: zod.number().nullish(),
+});
+
+/**
+ * @summary Get a user's public profile
+ */
+export const GetUserProfileParams = zod.object({
+  username: zod.coerce.string(),
+});
+
+export const GetUserProfileResponse = zod.object({
+  id: zod.number(),
+  username: zod.string(),
+  displayName: zod.string().nullish(),
+  bio: zod.string().nullish(),
+  avatarUrl: zod.string().nullish(),
+  postCount: zod.number(),
+  threadCount: zod.number(),
+  createdAt: zod.date(),
+});
+
+/**
+ * @summary Update the current user's profile
+ */
+export const updateMyProfileBodyDisplayNameMax = 50;
+
+export const updateMyProfileBodyBioMax = 500;
+
+export const UpdateMyProfileBody = zod.object({
+  displayName: zod.string().max(updateMyProfileBodyDisplayNameMax).nullish(),
+  bio: zod.string().max(updateMyProfileBodyBioMax).nullish(),
+});
+
+export const UpdateMyProfileResponse = zod.object({
+  id: zod.number(),
+  username: zod.string(),
+  displayName: zod.string().nullish(),
+  bio: zod.string().nullish(),
+  avatarUrl: zod.string().nullish(),
+  postCount: zod.number(),
+  threadCount: zod.number(),
+  createdAt: zod.date(),
+});
+
+/**
+ * @summary Upload avatar image as base64
+ */
+export const UploadAvatarBody = zod.object({
+  imageData: zod
+    .string()
+    .describe(
+      "Base64-encoded image data URI (e.g. data:image\/png;base64,...)",
+    ),
+});
+
+export const UploadAvatarResponse = zod.object({
+  avatarUrl: zod.string(),
 });

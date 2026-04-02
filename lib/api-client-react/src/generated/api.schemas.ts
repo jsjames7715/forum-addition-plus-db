@@ -31,6 +31,8 @@ export interface LoginBody {
 export interface AuthUser {
   id: number;
   username: string;
+  displayName?: string | null;
+  avatarUrl?: string | null;
   createdAt: string;
 }
 
@@ -52,6 +54,8 @@ export interface Thread {
   categoryId: number;
   authorId: number;
   authorUsername: string;
+  authorDisplayName?: string | null;
+  authorAvatarUrl?: string | null;
   postCount: number;
   createdAt: string;
   lastPostAt: string;
@@ -79,7 +83,12 @@ export interface Post {
   threadId: number;
   authorId: number;
   authorUsername: string;
+  authorDisplayName?: string | null;
+  authorAvatarUrl?: string | null;
   content: string;
+  parentPostId?: number | null;
+  parentPostAuthorUsername?: string | null;
+  parentPostContent?: string | null;
   createdAt: string;
 }
 
@@ -93,6 +102,34 @@ export interface ListPostsResponse {
 export interface CreatePostBody {
   /** @minLength 1 */
   content: string;
+  parentPostId?: number | null;
+}
+
+export interface UserProfile {
+  id: number;
+  username: string;
+  displayName?: string | null;
+  bio?: string | null;
+  avatarUrl?: string | null;
+  postCount: number;
+  threadCount: number;
+  createdAt: string;
+}
+
+export interface UpdateProfileBody {
+  /** @maxLength 50 */
+  displayName?: string | null;
+  /** @maxLength 500 */
+  bio?: string | null;
+}
+
+export interface UploadAvatarBody {
+  /** Base64-encoded image data URI (e.g. data:image/png;base64,...) */
+  imageData: string;
+}
+
+export interface AvatarResponse {
+  avatarUrl: string;
 }
 
 export type ListThreadsParams = {

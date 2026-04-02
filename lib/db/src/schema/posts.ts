@@ -9,6 +9,7 @@ export const postsTable = pgTable("posts", {
   threadId: integer("thread_id").notNull().references(() => threadsTable.id),
   authorId: integer("author_id").notNull().references(() => usersTable.id),
   content: text("content").notNull(),
+  parentPostId: integer("parent_post_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

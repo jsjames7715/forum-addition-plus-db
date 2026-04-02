@@ -6,10 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface AuthUser {
+export interface UserProfile {
   id: number;
   username: string;
   displayName?: string | null;
+  bio?: string | null;
   avatarUrl?: string | null;
+  postCount: number;
+  threadCount: number;
   createdAt: Date;
 }

@@ -6,8 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CreatePostBody {
-  /** @minLength 1 */
-  content: string;
-  parentPostId?: number | null;
+export interface UploadAvatarBody {
+  /** Base64-encoded image data URI (e.g. data:image/png;base64,...) */
+  imageData: string;
 }

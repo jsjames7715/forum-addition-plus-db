@@ -6,10 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface AuthUser {
-  id: number;
-  username: string;
+export interface UpdateProfileBody {
+  /** @maxLength 50 */
   displayName?: string | null;
-  avatarUrl?: string | null;
-  createdAt: Date;
+  /** @maxLength 500 */
+  bio?: string | null;
 }

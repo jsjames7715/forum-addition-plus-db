@@ -12,6 +12,8 @@ export interface Thread {
   categoryId: number;
   authorId: number;
   authorUsername: string;
+  authorDisplayName?: string | null;
+  authorAvatarUrl?: string | null;
   postCount: number;
   createdAt: Date;
   lastPostAt: Date;

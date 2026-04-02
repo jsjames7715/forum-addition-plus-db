@@ -11,6 +11,11 @@ export interface Post {
   threadId: number;
   authorId: number;
   authorUsername: string;
+  authorDisplayName?: string | null;
+  authorAvatarUrl?: string | null;
   content: string;
+  parentPostId?: number | null;
+  parentPostAuthorUsername?: string | null;
+  parentPostContent?: string | null;
   createdAt: Date;
 }

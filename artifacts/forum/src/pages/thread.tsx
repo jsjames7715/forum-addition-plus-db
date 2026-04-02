@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, Link } from "wouter";
 import { useGetThread, useListPosts, useCreatePost, getListPostsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -7,7 +8,7 @@ import { formatDistanceToNow, format } from "date-fns";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Clock, MessageSquare, CornerDownRight, User } from "lucide-react";
+import { ArrowLeft, Clock, MessageSquare, CornerDownRight, User, X, Reply } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,6 +25,7 @@ export default function Thread() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [replyingTo, setReplyingTo] = useState<{ id: number; username: string } | null>(null);
 
   const { data: thread, isLoading: threadLoading } = useGetThread(threadId);
   const { data: postsData, isLoading: postsLoading } = useListPosts(threadId, { page: 1, limit: 100 });
@@ -33,6 +35,7 @@ export default function Thread() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListPostsQueryKey(threadId, { page: 1, limit: 100 }) });
         form.reset();
+        setReplyingTo(null);
         toast({ title: "Payload transmitted." });
         // Scroll to bottom after slight delay
         setTimeout(() => window.scrollTo(0, document.body.scrollHeight), 100);
@@ -49,7 +52,7 @@ export default function Thread() {
   });
 
   function onSubmit(values: z.infer<typeof createPostSchema>) {
-    createPostMutation.mutate({ threadId, data: values });
+    createPostMutation.mutate({ threadId, data: { content: values.content, parentPostId: replyingTo?.id ?? null } });
   }
 
   return (
@@ -102,14 +105,14 @@ export default function Thread() {
             <div key={post.id} className="group flex gap-4">
               {/* Avatar Column */}
               <div className="hidden sm:flex flex-col items-center shrink-0 w-12 pt-1">
-                <div className="w-10 h-10 rounded overflow-hidden border border-white/10 bg-background/50 relative">
+                <Link href={`/profile/${post.authorUsername}`} className="w-10 h-10 rounded overflow-hidden border border-white/10 bg-background/50 relative hover:border-primary/50 transition-colors">
                   <img 
-                    src={`${import.meta.env.BASE_URL}images/avatar-placeholder.png`} 
+                    src={post.authorAvatarUrl || `${import.meta.env.BASE_URL}images/avatar-placeholder.png`} 
                     alt="avatar"
-                    className="w-full h-full object-cover opacity-80"
+                    className="w-full h-full object-cover opacity-80 hover:opacity-100 transition-opacity"
                   />
-                  <div className="absolute inset-0 bg-primary/10 mix-blend-color-burn"></div>
-                </div>
+                  {!post.authorAvatarUrl && <div className="absolute inset-0 bg-primary/10 mix-blend-color-burn pointer-events-none"></div>}
+                </Link>
                 {/* Connecting line to next post */}
                 {idx !== postsData.posts.length - 1 && (
                   <div className="w-px h-full bg-white/5 mt-2"></div>
@@ -121,15 +124,37 @@ export default function Thread() {
                 <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-3">
                   <div className="flex items-center gap-2 sm:hidden mb-2">
                     <User className="w-4 h-4 text-primary/70" />
-                    <span className="font-mono text-sm text-primary/90">{post.authorUsername}</span>
+                    <Link href={`/profile/${post.authorUsername}`} className="font-mono text-sm text-primary/90 hover:underline">{post.authorUsername}</Link>
                   </div>
-                  <span className="hidden sm:inline font-mono text-sm text-primary/90 font-medium">
+                  <Link href={`/profile/${post.authorUsername}`} className="hidden sm:inline font-mono text-sm text-primary/90 font-medium hover:underline">
                     {post.authorUsername}
-                  </span>
-                  <span className="font-mono text-xs text-muted-foreground" title={format(new Date(post.createdAt), "PPpp")}>
-                    {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
-                  </span>
+                  </Link>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-xs text-muted-foreground" title={format(new Date(post.createdAt), "PPpp")}>
+                      {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
+                    </span>
+                    {user && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-6 px-2 text-[10px] uppercase font-mono text-muted-foreground hover:text-primary hover:bg-primary/10" 
+                        onClick={() => {
+                          setReplyingTo({ id: post.id, username: post.authorUsername });
+                          window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                        }}
+                      >
+                        <Reply className="w-3 h-3 mr-1" /> Reply
+                      </Button>
+                    )}
+                  </div>
                 </div>
+                
+                {post.parentPostId && (
+                  <div className="mb-3 bg-black/20 border-l-2 border-primary/50 pl-3 py-2 rounded-r-md text-sm opacity-80">
+                    <div className="text-primary/70 font-mono text-xs mb-1">@{post.parentPostAuthorUsername}</div>
+                    <div className="text-muted-foreground line-clamp-2 italic font-sans">{post.parentPostContent}</div>
+                  </div>
+                )}
                 
                 <div className="prose prose-invert prose-p:text-gray-300 max-w-none text-[15px] leading-relaxed font-sans whitespace-pre-wrap">
                   {post.content}
@@ -156,6 +181,17 @@ export default function Thread() {
             </div>
           ) : (
             <div className="bg-card/20 border border-primary/20 rounded-lg p-1">
+              {replyingTo && (
+                <div className="bg-primary/10 border-b border-primary/20 px-4 py-2 flex justify-between items-center text-sm rounded-t-md">
+                  <span className="font-mono text-primary flex items-center gap-2">
+                    <Reply className="w-4 h-4" />
+                    Replying to @{replyingTo.username}
+                  </span>
+                  <button type="button" onClick={() => setReplyingTo(null)} className="text-muted-foreground hover:text-foreground">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-0">
                   <FormField

@@ -4,6 +4,7 @@ import authRouter from "./auth";
 import categoriesRouter from "./categories";
 import threadsRouter from "./threads";
 import postsRouter from "./posts";
+import usersRouter from "./users";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(authRouter);
 router.use(categoriesRouter);
 router.use(threadsRouter);
 router.use(postsRouter);
+router.use(usersRouter);
 
 export default router;
