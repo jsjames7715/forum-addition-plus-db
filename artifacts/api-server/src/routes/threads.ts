@@ -1,117 +1,114 @@
-import { Router, type IRouter } from "express";
-import { db, threadsTable, postsTable, categoriesTable, usersTable } from "@workspace/db";
+import { Hono } from "hono";
+import { drizzle } from "drizzle-orm/d1";
 import { eq, count, desc } from "drizzle-orm";
+import * as schema from "@workspace/db";
 import {
   ListThreadsParams,
   ListThreadsQueryParams,
   CreateThreadParams,
   CreateThreadBody,
   GetThreadParams,
-  ListThreadsResponse,
-  GetThreadResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
+import type { HonoEnv } from "../types";
 
-const router: IRouter = Router();
+const threads = new Hono<HonoEnv>();
 
-router.get("/categories/:categoryId/threads", async (req, res): Promise<void> => {
-  const params = ListThreadsParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+threads.get("/categories/:categoryId/threads", async (c) => {
+  const params = ListThreadsParams.safeParse({ categoryId: c.req.param("categoryId") });
+  if (!params.success) return c.json({ error: params.error.message }, 400);
 
-  const query = ListThreadsQueryParams.safeParse(req.query);
-  if (!query.success) {
-    res.status(400).json({ error: query.error.message });
-    return;
-  }
+  const query = ListThreadsQueryParams.safeParse({
+    page: c.req.query("page") ?? "1",
+    limit: c.req.query("limit") ?? "20",
+  });
+  if (!query.success) return c.json({ error: query.error.message }, 400);
 
   const { categoryId } = params.data;
   const { page, limit } = query.data;
+  const db = drizzle(c.env.DB, { schema });
 
-  const [cat] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, categoryId));
-  if (!cat) {
-    res.status(404).json({ error: "Category not found" });
-    return;
-  }
+  const [cat] = await db
+    .select()
+    .from(schema.categoriesTable)
+    .where(eq(schema.categoriesTable.id, categoryId));
+  if (!cat) return c.json({ error: "Category not found" }, 404);
 
   const offset = (page - 1) * limit;
 
-  const threads = await db
+  const rows = await db
     .select({
-      id: threadsTable.id,
-      title: threadsTable.title,
-      categoryId: threadsTable.categoryId,
-      authorId: threadsTable.authorId,
-      authorUsername: usersTable.username,
-      authorDisplayName: usersTable.displayName,
-      authorAvatarUrl: usersTable.avatarUrl,
-      lastPostAt: threadsTable.lastPostAt,
-      createdAt: threadsTable.createdAt,
+      id: schema.threadsTable.id,
+      title: schema.threadsTable.title,
+      categoryId: schema.threadsTable.categoryId,
+      authorId: schema.threadsTable.authorId,
+      authorUsername: schema.usersTable.username,
+      authorDisplayName: schema.usersTable.displayName,
+      authorAvatarUrl: schema.usersTable.avatarUrl,
+      lastPostAt: schema.threadsTable.lastPostAt,
+      createdAt: schema.threadsTable.createdAt,
     })
-    .from(threadsTable)
-    .innerJoin(usersTable, eq(threadsTable.authorId, usersTable.id))
-    .where(eq(threadsTable.categoryId, categoryId))
-    .orderBy(desc(threadsTable.lastPostAt))
+    .from(schema.threadsTable)
+    .innerJoin(schema.usersTable, eq(schema.threadsTable.authorId, schema.usersTable.id))
+    .where(eq(schema.threadsTable.categoryId, categoryId))
+    .orderBy(desc(schema.threadsTable.lastPostAt))
     .limit(limit)
     .offset(offset);
 
   const [{ total }] = await db
     .select({ total: count() })
-    .from(threadsTable)
-    .where(eq(threadsTable.categoryId, categoryId));
+    .from(schema.threadsTable)
+    .where(eq(schema.threadsTable.categoryId, categoryId));
 
-  const threadsWithCount = await Promise.all(
-    threads.map(async (t) => {
+  const threadList = await Promise.all(
+    rows.map(async (t) => {
       const [{ postCount }] = await db
         .select({ postCount: count() })
-        .from(postsTable)
-        .where(eq(postsTable.threadId, t.id));
+        .from(schema.postsTable)
+        .where(eq(schema.postsTable.threadId, t.id));
       return {
         ...t,
         authorDisplayName: t.authorDisplayName ?? null,
         authorAvatarUrl: t.authorAvatarUrl ?? null,
-        postCount: Number(postCount),
+        postCount,
       };
     })
   );
 
-  res.json(ListThreadsResponse.parse({ threads: threadsWithCount, total: Number(total), page, limit }));
+  return c.json({ threads: threadList, total, page, limit });
 });
 
-router.post("/categories/:categoryId/threads", requireAuth, async (req, res): Promise<void> => {
-  const params = CreateThreadParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+threads.post("/categories/:categoryId/threads", requireAuth, async (c) => {
+  const params = CreateThreadParams.safeParse({ categoryId: c.req.param("categoryId") });
+  if (!params.success) return c.json({ error: params.error.message }, 400);
 
-  const body = CreateThreadBody.safeParse(req.body);
-  if (!body.success) {
-    res.status(400).json({ error: body.error.message });
-    return;
-  }
+  const body = CreateThreadBody.safeParse(await c.req.json());
+  if (!body.success) return c.json({ error: body.error.message }, 400);
 
   const { categoryId } = params.data;
   const { title, content } = body.data;
-  const user = (req as any).user;
+  const user = c.get("user");
+  const db = drizzle(c.env.DB, { schema });
 
-  const [cat] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, categoryId));
-  if (!cat) {
-    res.status(404).json({ error: "Category not found" });
-    return;
-  }
+  const [cat] = await db
+    .select()
+    .from(schema.categoriesTable)
+    .where(eq(schema.categoriesTable.id, categoryId));
+  if (!cat) return c.json({ error: "Category not found" }, 404);
 
   const [thread] = await db
-    .insert(threadsTable)
+    .insert(schema.threadsTable)
     .values({ title, categoryId, authorId: user.id })
     .returning();
 
-  await db.insert(postsTable).values({ threadId: thread.id, authorId: user.id, content });
+  await db.insert(schema.postsTable).values({
+    threadId: thread.id,
+    authorId: user.id,
+    content,
+  });
 
-  res.status(201).json(
-    GetThreadResponse.parse({
+  return c.json(
+    {
       id: thread.id,
       title: thread.title,
       categoryId: thread.categoryId,
@@ -122,53 +119,47 @@ router.post("/categories/:categoryId/threads", requireAuth, async (req, res): Pr
       postCount: 1,
       createdAt: thread.createdAt,
       lastPostAt: thread.lastPostAt,
-    })
+    },
+    201
   );
 });
 
-router.get("/threads/:threadId", async (req, res): Promise<void> => {
-  const params = GetThreadParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+threads.get("/threads/:threadId", async (c) => {
+  const params = GetThreadParams.safeParse({ threadId: c.req.param("threadId") });
+  if (!params.success) return c.json({ error: params.error.message }, 400);
 
   const { threadId } = params.data;
+  const db = drizzle(c.env.DB, { schema });
 
   const [row] = await db
     .select({
-      id: threadsTable.id,
-      title: threadsTable.title,
-      categoryId: threadsTable.categoryId,
-      authorId: threadsTable.authorId,
-      authorUsername: usersTable.username,
-      authorDisplayName: usersTable.displayName,
-      authorAvatarUrl: usersTable.avatarUrl,
-      lastPostAt: threadsTable.lastPostAt,
-      createdAt: threadsTable.createdAt,
+      id: schema.threadsTable.id,
+      title: schema.threadsTable.title,
+      categoryId: schema.threadsTable.categoryId,
+      authorId: schema.threadsTable.authorId,
+      authorUsername: schema.usersTable.username,
+      authorDisplayName: schema.usersTable.displayName,
+      authorAvatarUrl: schema.usersTable.avatarUrl,
+      lastPostAt: schema.threadsTable.lastPostAt,
+      createdAt: schema.threadsTable.createdAt,
     })
-    .from(threadsTable)
-    .innerJoin(usersTable, eq(threadsTable.authorId, usersTable.id))
-    .where(eq(threadsTable.id, threadId));
+    .from(schema.threadsTable)
+    .innerJoin(schema.usersTable, eq(schema.threadsTable.authorId, schema.usersTable.id))
+    .where(eq(schema.threadsTable.id, threadId));
 
-  if (!row) {
-    res.status(404).json({ error: "Thread not found" });
-    return;
-  }
+  if (!row) return c.json({ error: "Thread not found" }, 404);
 
   const [{ postCount }] = await db
     .select({ postCount: count() })
-    .from(postsTable)
-    .where(eq(postsTable.threadId, threadId));
+    .from(schema.postsTable)
+    .where(eq(schema.postsTable.threadId, threadId));
 
-  res.json(
-    GetThreadResponse.parse({
-      ...row,
-      authorDisplayName: row.authorDisplayName ?? null,
-      authorAvatarUrl: row.authorAvatarUrl ?? null,
-      postCount: Number(postCount),
-    })
-  );
+  return c.json({
+    ...row,
+    authorDisplayName: row.authorDisplayName ?? null,
+    authorAvatarUrl: row.authorAvatarUrl ?? null,
+    postCount,
+  });
 });
 
-export default router;
+export default threads;

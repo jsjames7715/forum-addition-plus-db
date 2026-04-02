@@ -1,13 +1,20 @@
-import { Router, type IRouter } from "express";
-import bcrypt from "bcryptjs";
-import { db, usersTable } from "@workspace/db";
+import { Hono } from "hono";
+import { drizzle } from "drizzle-orm/d1";
 import { eq } from "drizzle-orm";
+import * as schema from "@workspace/db";
 import { RegisterBody, LoginBody } from "@workspace/api-zod";
-import { createSession, destroySession, getCurrentUser, requireAuth } from "../lib/auth";
+import {
+  hashPassword,
+  verifyPassword,
+  createSession,
+  destroySession,
+  getCurrentUser,
+} from "../lib/auth";
+import type { HonoEnv } from "../types";
 
-const router: IRouter = Router();
+const auth = new Hono<HonoEnv>();
 
-function formatAuthUser(user: typeof usersTable.$inferSelect) {
+function formatAuthUser(user: typeof schema.usersTable.$inferSelect) {
   return {
     id: user.id,
     username: user.username,
@@ -17,65 +24,64 @@ function formatAuthUser(user: typeof usersTable.$inferSelect) {
   };
 }
 
-router.post("/auth/register", async (req, res): Promise<void> => {
-  const parsed = RegisterBody.safeParse(req.body);
+auth.post("/register", async (c) => {
+  const parsed = RegisterBody.safeParse(await c.req.json());
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
+    return c.json({ error: parsed.error.message }, 400);
   }
 
   const { username, password } = parsed.data;
+  const db = drizzle(c.env.DB, { schema });
 
-  const [existing] = await db.select().from(usersTable).where(eq(usersTable.username, username));
-  if (existing) {
-    res.status(409).json({ error: "Username already taken" });
-    return;
-  }
+  const [existing] = await db
+    .select()
+    .from(schema.usersTable)
+    .where(eq(schema.usersTable.username, username));
 
-  const passwordHash = await bcrypt.hash(password, 12);
-  const [user] = await db.insert(usersTable).values({ username, passwordHash }).returning();
+  if (existing) return c.json({ error: "Username already taken" }, 409);
 
-  await createSession(res, user.id);
-  res.status(201).json(formatAuthUser(user));
+  const passwordHash = await hashPassword(password);
+  const [user] = await db
+    .insert(schema.usersTable)
+    .values({ username, passwordHash })
+    .returning();
+
+  await createSession(c, user.id);
+  return c.json(formatAuthUser(user), 201);
 });
 
-router.post("/auth/login", async (req, res): Promise<void> => {
-  const parsed = LoginBody.safeParse(req.body);
+auth.post("/login", async (c) => {
+  const parsed = LoginBody.safeParse(await c.req.json());
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
+    return c.json({ error: parsed.error.message }, 400);
   }
 
   const { username, password } = parsed.data;
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.username, username));
+  const db = drizzle(c.env.DB, { schema });
 
-  if (!user) {
-    res.status(401).json({ error: "Invalid credentials" });
-    return;
-  }
+  const [user] = await db
+    .select()
+    .from(schema.usersTable)
+    .where(eq(schema.usersTable.username, username));
 
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) {
-    res.status(401).json({ error: "Invalid credentials" });
-    return;
-  }
+  if (!user) return c.json({ error: "Invalid credentials" }, 401);
 
-  await createSession(res, user.id);
-  res.json(formatAuthUser(user));
+  const valid = await verifyPassword(password, user.passwordHash);
+  if (!valid) return c.json({ error: "Invalid credentials" }, 401);
+
+  await createSession(c, user.id);
+  return c.json(formatAuthUser(user));
 });
 
-router.post("/auth/logout", async (req, res): Promise<void> => {
-  await destroySession(req, res);
-  res.sendStatus(204);
+auth.post("/logout", async (c) => {
+  await destroySession(c);
+  return c.body(null, 204);
 });
 
-router.get("/auth/me", async (req, res): Promise<void> => {
-  const user = await getCurrentUser(req);
-  if (!user) {
-    res.status(401).json({ error: "Not authenticated" });
-    return;
-  }
-  res.json(formatAuthUser(user));
+auth.get("/me", async (c) => {
+  const user = await getCurrentUser(c);
+  if (!user) return c.json({ error: "Not authenticated" }, 401);
+  return c.json(formatAuthUser(user));
 });
 
-export default router;
+export default auth;

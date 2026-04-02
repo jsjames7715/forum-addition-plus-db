@@ -1,46 +1,44 @@
-import { Router, type IRouter } from "express";
-import { db, categoriesTable, threadsTable, postsTable } from "@workspace/db";
-import { eq, count, sql } from "drizzle-orm";
-import { ListCategoriesResponse } from "@workspace/api-zod";
+import { Hono } from "hono";
+import { drizzle } from "drizzle-orm/d1";
+import { eq, count } from "drizzle-orm";
+import * as schema from "@workspace/db";
+import type { HonoEnv } from "../types";
 
-const router: IRouter = Router();
+const categories = new Hono<HonoEnv>();
 
-router.get("/categories", async (_req, res): Promise<void> => {
-  const cats = await db.select().from(categoriesTable).orderBy(categoriesTable.id);
+categories.get("/", async (c) => {
+  const db = drizzle(c.env.DB, { schema });
 
-  const result = await Promise.all(
+  const cats = await db.select().from(schema.categoriesTable);
+
+  const enriched = await Promise.all(
     cats.map(async (cat) => {
-      const [threadRow] = await db
-        .select({ count: count() })
-        .from(threadsTable)
-        .where(eq(threadsTable.categoryId, cat.id));
-
       const threads = await db
-        .select({ id: threadsTable.id })
-        .from(threadsTable)
-        .where(eq(threadsTable.categoryId, cat.id));
+        .select()
+        .from(schema.threadsTable)
+        .where(eq(schema.threadsTable.categoryId, cat.id));
 
       const threadIds = threads.map((t) => t.id);
       let postCount = 0;
-      if (threadIds.length > 0) {
-        const [postRow] = await db
-          .select({ count: count() })
-          .from(postsTable)
-          .where(sql`${postsTable.threadId} = ANY(${sql.raw(`ARRAY[${threadIds.join(",")}]`)})`);
-        postCount = Number(postRow?.count ?? 0);
+      for (const tid of threadIds) {
+        const [{ total }] = await db
+          .select({ total: count() })
+          .from(schema.postsTable)
+          .where(eq(schema.postsTable.threadId, tid));
+        postCount += total;
       }
 
       return {
         id: cat.id,
         name: cat.name,
         description: cat.description,
-        threadCount: Number(threadRow?.count ?? 0),
+        threadCount: threads.length,
         postCount,
       };
     })
   );
 
-  res.json(ListCategoriesResponse.parse({ categories: result }));
+  return c.json({ categories: enriched });
 });
 
-export default router;
+export default categories;

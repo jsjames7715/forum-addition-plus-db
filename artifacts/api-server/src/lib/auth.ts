@@ -1,82 +1,157 @@
-import { Request, Response, NextFunction } from "express";
-import { db, sessionsTable, usersTable } from "@workspace/db";
+import { drizzle } from "drizzle-orm/d1";
 import { eq, and, gt } from "drizzle-orm";
-import { randomBytes } from "crypto";
+import { getCookie, setCookie, deleteCookie } from "hono/cookie";
+import { createMiddleware } from "hono/factory";
+import * as schema from "@workspace/db";
+import type { Context } from "hono";
+import type { HonoEnv } from "../types";
 
 const SESSION_COOKIE = "forum_sid";
-const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
-export async function createSession(res: Response, userId: number): Promise<void> {
-  const id = randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
+export async function hashPassword(password: string): Promise<string> {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations: 100000 },
+    keyMaterial,
+    256
+  );
+  const hashHex = [...new Uint8Array(bits)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  const saltHex = [...salt]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return `pbkdf2:sha256:100000:${saltHex}:${hashHex}`;
+}
 
-  await db.insert(sessionsTable).values({ id, userId, expiresAt });
+export async function verifyPassword(
+  password: string,
+  stored: string
+): Promise<boolean> {
+  const parts = stored.split(":");
+  if (parts.length !== 5) return false;
+  const [, , , saltHex, hashHex] = parts;
+  const salt = new Uint8Array(
+    saltHex.match(/.{2}/g)!.map((h) => parseInt(h, 16))
+  );
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations: 100000 },
+    keyMaterial,
+    256
+  );
+  const newHashHex = [...new Uint8Array(bits)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return newHashHex === hashHex;
+}
 
-  res.cookie(SESSION_COOKIE, id, {
+export async function createSession(
+  c: Context<HonoEnv>,
+  userId: number
+): Promise<void> {
+  const db = drizzle(c.env.DB, { schema });
+  const id = [...crypto.getRandomValues(new Uint8Array(32))]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  const expiresAt = new Date(Date.now() + SESSION_DURATION_MS).toISOString();
+  await db.insert(schema.sessionsTable).values({ id, userId, expiresAt });
+  setCookie(c, SESSION_COOKIE, id, {
     httpOnly: true,
-    sameSite: "lax",
-    expires: expiresAt,
+    sameSite: "Lax",
+    expires: new Date(expiresAt),
+    path: "/",
   });
 }
 
-export async function destroySession(req: Request, res: Response): Promise<void> {
-  const sid = req.cookies?.[SESSION_COOKIE];
+export async function destroySession(c: Context<HonoEnv>): Promise<void> {
+  const db = drizzle(c.env.DB, { schema });
+  const sid = getCookie(c, SESSION_COOKIE);
   if (sid) {
-    await db.delete(sessionsTable).where(eq(sessionsTable.id, sid));
+    await db
+      .delete(schema.sessionsTable)
+      .where(eq(schema.sessionsTable.id, sid));
   }
-  res.clearCookie(SESSION_COOKIE);
+  deleteCookie(c, SESSION_COOKIE, { path: "/" });
 }
 
-export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const sid = req.cookies?.[SESSION_COOKIE];
-  if (!sid) {
-    res.status(401).json({ error: "Not authenticated" });
-    return;
-  }
-
-  const [session] = await db
-    .select()
-    .from(sessionsTable)
-    .where(
-      and(
-        eq(sessionsTable.id, sid),
-        gt(sessionsTable.expiresAt, new Date())
-      )
-    );
-
-  if (!session) {
-    res.clearCookie(SESSION_COOKIE);
-    res.status(401).json({ error: "Session expired" });
-    return;
-  }
-
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, session.userId));
-  if (!user) {
-    res.clearCookie(SESSION_COOKIE);
-    res.status(401).json({ error: "User not found" });
-    return;
-  }
-
-  (req as any).user = user;
-  next();
-}
-
-export async function getCurrentUser(req: Request): Promise<typeof usersTable.$inferSelect | null> {
-  const sid = req.cookies?.[SESSION_COOKIE];
+export async function getCurrentUser(
+  c: Context<HonoEnv>
+): Promise<typeof schema.usersTable.$inferSelect | null> {
+  const db = drizzle(c.env.DB, { schema });
+  const sid = getCookie(c, SESSION_COOKIE);
   if (!sid) return null;
 
+  const now = new Date().toISOString();
   const [session] = await db
     .select()
-    .from(sessionsTable)
+    .from(schema.sessionsTable)
     .where(
       and(
-        eq(sessionsTable.id, sid),
-        gt(sessionsTable.expiresAt, new Date())
+        eq(schema.sessionsTable.id, sid),
+        gt(schema.sessionsTable.expiresAt, now)
       )
     );
 
   if (!session) return null;
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, session.userId));
+  const [user] = await db
+    .select()
+    .from(schema.usersTable)
+    .where(eq(schema.usersTable.id, session.userId));
+
   return user ?? null;
 }
+
+export const requireAuth = createMiddleware<HonoEnv>(async (c, next) => {
+  const db = drizzle(c.env.DB, { schema });
+  const sid = getCookie(c, SESSION_COOKIE);
+  if (!sid) {
+    return c.json({ error: "Not authenticated" }, 401);
+  }
+
+  const now = new Date().toISOString();
+  const [session] = await db
+    .select()
+    .from(schema.sessionsTable)
+    .where(
+      and(
+        eq(schema.sessionsTable.id, sid),
+        gt(schema.sessionsTable.expiresAt, now)
+      )
+    );
+
+  if (!session) {
+    deleteCookie(c, SESSION_COOKIE, { path: "/" });
+    return c.json({ error: "Session expired" }, 401);
+  }
+
+  const [user] = await db
+    .select()
+    .from(schema.usersTable)
+    .where(eq(schema.usersTable.id, session.userId));
+
+  if (!user) {
+    deleteCookie(c, SESSION_COOKIE, { path: "/" });
+    return c.json({ error: "User not found" }, 401);
+  }
+
+  c.set("user", user);
+  await next();
+});

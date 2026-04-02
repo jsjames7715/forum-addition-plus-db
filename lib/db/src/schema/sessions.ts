@@ -1,12 +1,11 @@
-import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
-import { integer } from "drizzle-orm/pg-core";
+import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { usersTable } from "./users";
 
-export const sessionsTable = pgTable("sessions", {
+export const sessionsTable = sqliteTable("sessions", {
   id: text("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => usersTable.id),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: text("expires_at").notNull(),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
 
 export type Session = typeof sessionsTable.$inferSelect;

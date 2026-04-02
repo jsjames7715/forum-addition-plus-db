@@ -1,25 +1,41 @@
-import app from "./app";
-import { logger } from "./lib/logger";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import type { HonoEnv } from "./types";
+import authRoutes from "./routes/auth";
+import categoriesRoutes from "./routes/categories";
+import threadsRoutes from "./routes/threads";
+import postsRoutes from "./routes/posts";
+import usersRoutes from "./routes/users";
 
-const rawPort = process.env["PORT"];
+const app = new Hono<HonoEnv>();
 
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
+app.use(
+  "*",
+  cors({
+    origin: (origin) => origin,
+    credentials: true,
+  })
+);
 
-const port = Number(rawPort);
+const api = new Hono<HonoEnv>();
 
-if (Number.isNaN(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: "${rawPort}"`);
-}
+api.get("/healthz", (c) => c.json({ status: "ok" }));
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
+// /api/auth/*
+api.route("/auth", authRoutes);
 
-  logger.info({ port }, "Server listening");
-});
+// /api/categories (list) and /api/categories/:categoryId/threads (in threadsRoutes)
+api.route("/categories", categoriesRoutes);
+
+// /api/categories/:categoryId/threads and /api/threads/:threadId
+api.route("/", threadsRoutes);
+
+// /api/threads/:threadId/posts
+api.route("/", postsRoutes);
+
+// /api/users/me/profile, /api/users/me/avatar, /api/users/:username
+api.route("/users", usersRoutes);
+
+app.route("/api", api);
+
+export default app;
