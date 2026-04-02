@@ -83,11 +83,11 @@ export function useAuth() {
   return {
     user: isError ? null : user,
     isLoading,
-    login: loginMutation.mutateAsync,
+    login: (values: { username: string; password: string }) => loginMutation.mutateAsync({ data: values }),
     isLoggingIn: loginMutation.isPending,
-    register: registerMutation.mutateAsync,
+    register: (values: { username: string; password: string }) => registerMutation.mutateAsync({ data: values }),
     isRegistering: registerMutation.isPending,
-    logout: logoutMutation.mutateAsync,
+    logout: () => logoutMutation.mutateAsync(),
     isLoggingOut: logoutMutation.isPending,
   };
 }
