@@ -6,8 +6,13 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "forum-db"
-database_id = "fb2ba8ba-07a2-4d3a-bbf0-c9789b5a60c8"
+database_id = "c0049037-8b94-4fae-8973-d95977bf2ae7"
 migrations_dir = "migrations"
+
+[assets]
+directory = "../forum/dist/public"
+not_found_handling = "single-page-application"
+binding = "ASSETS"
 
 [dev]
 port = 8080
