@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "pnpm run db:init && wrangler dev",
     "db:init": "wrangler d1 execute forum-db --local --file=migrations/0001_init.sql 2>/dev/null || true",
-    "deploy": "wrangler deploy",
+    "deploy": "wrangler deploy --assets ./public",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
