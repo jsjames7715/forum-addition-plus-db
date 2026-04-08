@@ -1,6 +1,6 @@
 name = "forum-api"
 main = "src/index.ts"
-compatibility_date = "2024-11-01"
+compatibility_date = "2026-04-08"
 compatibility_flags = ["nodejs_compat"]
 
 [[d1_databases]]
@@ -10,7 +10,7 @@ database_id = "c0049037-8b94-4fae-8973-d95977bf2ae7"
 migrations_dir = "migrations"
 
 [assets]
-directory = "../forum/dist/public"
+directory = "./public"
 not_found_handling = "single-page-application"
 binding = "ASSETS"
 
