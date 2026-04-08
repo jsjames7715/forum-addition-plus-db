@@ -1,2 +1,22 @@
 export * from "./generated/api";
-export * from "./generated/types";
+export type {
+  AuthUser,
+  AvatarResponse,
+  Category,
+  CreatePostBody,
+  CreateThreadBody,
+  ErrorResponse,
+  HealthStatus,
+  ListCategoriesResponse,
+  ListPostsParams,
+  ListPostsResponse,
+  ListThreadsParams,
+  ListThreadsResponse,
+  LoginBody,
+  Post,
+  RegisterBody,
+  Thread,
+  UpdateProfileBody,
+  UploadAvatarBody,
+  UserProfile,
+} from "./generated/types";
